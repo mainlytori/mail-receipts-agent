@@ -38,7 +38,7 @@ RECEIPT_WORDS = re.compile(
 
 CATEGORY_WORDS = {
     Category.GROCERIES: "grocery|supermarket|market|magnum|small|walmart|tesco|lidl|aldi|instacart",
-    Category.FOOD_DRINKS: "restaurant|cafe|coffee|starbucks|pizza|burger|wolt|glovo|uber eats|deliveroo|doordash|kfc|mcdonald",
+    Category.FOOD_DRINKS: "restaurant|cafe|coffee|starbucks|pizza|burger|hardee|sushi|суши|бургер|кафе|ресторан|doner|донер|wolt|glovo|uber eats|deliveroo|doordash|kfc|mcdonald",
     Category.TRANSPORT: "uber|bolt|lyft|yandex go|taxi|metro|fuel|parking",
     Category.SUBSCRIPTIONS: "subscription|netflix|spotify|apple\\.com|icloud|youtube premium|patreon|membership|renewal",
     Category.BILLS: "electric|water bill|internet|mobile plan|utility|beeline|kcell|tele2|rent",

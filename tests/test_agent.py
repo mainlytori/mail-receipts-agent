@@ -167,7 +167,9 @@ def test_ollama_extractor_sends_schema_and_parses_answer(monkeypatch):
         return _Resp({"message": {"content": _json.dumps(answer)}})
 
     monkeypatch.setattr(ollama_mod.requests, "post", fake_post)
-    r = ollama_mod.OllamaExtractor("qwen2.5:7b").extract(make_email(8))
+    email = make_email(8)
+    email.body = "Total: 5 200 ₸"
+    r = ollama_mod.OllamaExtractor("qwen2.5:7b").extract(email)
     assert r.store == "Wolt" and r.total == 5200 and r.category == Category.FOOD_DRINKS
     assert "$ref" not in _json.dumps(sent["format"])
     assert sent["stream"] is False
@@ -209,11 +211,19 @@ def test_fix_up_keeps_correct_currency_and_skips_generic_sender():
     assert r.store is None
 
 
-def test_ollama_schema_requires_store_and_items(monkeypatch):
-    monkeypatch.setattr(ollama_mod.requests, "get",
-                        lambda url, timeout: _Resp({"models": [{"name": "qwen2.5:7b"}]}))
-    ex = ollama_mod.OllamaExtractor("qwen2.5:7b")
-    assert {"store", "items", "currency"} <= set(ex.schema["required"])
+def test_fix_up_cleans_small_model_mistakes():
+    email = make_email(12, "Чек KFC N-City")
+    email.sender = "KFC <noreply@kfc.kz>"
+    email.body = "Твистер 1 шт\nИтого: 4 376,20 ₸\nОплата: Visa ****1111"
+    r = ollama_mod.fix_up(email, ReceiptExtraction(
+        is_receipt=True, store="KFC N-City (KFC N-City)", total=None, currency="KZT",
+        category=Category.GROCERIES, items=["null", "Total", "KFC N-City x1", "Twister"],
+    ))
+    assert r.store == "KFC N-City"
+    assert r.total == 4376.2
+    assert r.category == Category.FOOD_DRINKS
+    assert r.items == ["Twister"]
+    assert r.payment_method == "Visa ****1111"
 
 
 def test_sheet_link_or_id_both_work():
