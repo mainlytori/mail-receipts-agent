@@ -191,7 +191,7 @@ def test_ollama_bad_answer_is_skipped(monkeypatch):
     monkeypatch.setattr(ollama_mod.requests, "post",
                         lambda url, json, timeout: _Resp({"message": {"content": "not json"}}))
     email = make_email(9, "Hello")
-    email.body = "Just saying hi"
+    email.body = "Just saying hi, lunch was 5 USD"
     assert ollama_mod.OllamaExtractor("qwen2.5:7b").extract(email) is None
 
 
@@ -299,3 +299,41 @@ def test_wolt_style_total_with_hidden_mark():
     assert (d.total, d.currency) == (4763.0, "KZT")
     r = ollama_mod.fix_up(email, ReceiptExtraction(is_receipt=True, store="Okadzaki", total=None, currency=None))
     assert (r.total, r.currency) == (4763.0, "KZT")
+
+
+def test_delivery_app_store_comes_from_subject_and_no_total_is_not_receipt():
+    email = make_email(17, "Your order's delivered: Hardee's EXPO Mall 01.11")
+    email.sender = "Wolt <info@wolt.com>"
+    email.body = "| Total | | KZT ‎4,993.00 | |"
+    r = ollama_mod.fix_up(email, ReceiptExtraction(is_receipt=True, store="Wolt", total=None))
+    assert r.store == "Hardee's EXPO Mall"
+    assert r.total == 4993.0 and r.is_receipt
+    from receipt_agent.rules_extractor import RulesExtractor as RX
+    assert RX().extract(email).store == "Hardee's EXPO Mall"
+
+    promo = make_email(18, "KFC: new Twister deal!")
+    promo.sender = "KFC <news@kfc.kz>"
+    promo.body = "Try the new Twister today, receipt-worthy taste"
+    p = ollama_mod.fix_up(promo, ReceiptExtraction(is_receipt=True, store="KFC", total=None))
+    assert p.is_receipt is False
+
+
+def test_emails_without_any_amount_skip_the_ai(monkeypatch):
+    monkeypatch.setattr(ollama_mod.requests, "get",
+                        lambda url, timeout: _Resp({"models": [{"name": "qwen2.5:7b"}]}))
+    def never(*a, **k):
+        raise AssertionError("AI should not be called")
+    monkeypatch.setattr(ollama_mod.requests, "post", never)
+    email = make_email(19, "Your order is on its way")
+    email.body = "The courier is coming!"
+    assert ollama_mod.OllamaExtractor("qwen2.5:7b").extract(email).is_receipt is False
+
+
+def test_run_keeps_receipts_found_before_connection_drops(tmp_path):
+    class Flaky(FakeSource):
+        def fetch(self, since_days):
+            yield make_email(20)
+            raise ConnectionError("dns blip")
+    sink = ExcelSink(str(tmp_path / "out.xlsx"))
+    n = run_once([Flaky([])], sink, FakeExtractor(), SeenStore(str(tmp_path / "s.json")), 30, False)
+    assert n == 1

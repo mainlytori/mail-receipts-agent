@@ -10,15 +10,24 @@ import requests
 from pydantic import ValidationError
 
 from .models import Category, Email, ReceiptExtraction
-from .rules_extractor import RulesExtractor, currencies_in, details, sender_name
+from .rules_extractor import (
+    PLATFORMS,
+    TOTAL_RE,
+    RulesExtractor,
+    clean,
+    currencies_in,
+    details,
+    sender_name,
+    subject_store,
+)
 
 log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You read emails and extract purchase receipts for a personal expense tracker.
 
 Decide whether the email confirms that the reader actually paid for something
-(receipt, order confirmation, paid invoice, payment confirmation). Ads, newsletters,
-shipping updates without prices, refunds and unpaid bills are NOT receipts.
+(receipt, order confirmation, paid invoice, payment confirmation). Ads, promos, discount
+offers, newsletters, shipping updates without prices, refunds and unpaid bills are NOT receipts.
 
 If it is a receipt, fill in the fields from what the email says. Leave a field null
 rather than guessing. The store is the shop, restaurant or service that was paid.
@@ -59,6 +68,9 @@ class OllamaExtractor:
 
     def extract(self, email: Email) -> ReceiptExtraction | None:
         """Returns the extraction, or None if the model's answer couldn't be used."""
+        if not looks_like_money(email):
+            # No amount anywhere: can't be a receipt, so don't spend minutes on the AI.
+            return ReceiptExtraction(is_receipt=False)
         prompt = (
             f"From: {email.sender}\n"
             f"Subject: {email.subject}\n"
@@ -74,7 +86,7 @@ class OllamaExtractor:
             "format": self.schema,  # Ollama forces the answer to match this JSON schema
             "stream": False,
             # num_predict stops a small model that gets stuck repeating itself.
-            "options": {"temperature": 0, "num_ctx": 8192, "num_predict": 800},
+            "options": {"temperature": 0, "num_ctx": 4096, "num_predict": 2048},
         }
         try:
             r = requests.post(self.url, json=payload, timeout=self.timeout)
@@ -93,7 +105,12 @@ class OllamaExtractor:
         return None
 
 
-MAX_BODY = 6000
+MAX_BODY = 3500
+
+
+def looks_like_money(email: Email) -> bool:
+    text = clean(f"{email.subject}\n{email.body}")
+    return bool(currencies_in(text) or TOTAL_RE.search(text))
 
 
 def _short(body: str) -> str:
@@ -128,6 +145,8 @@ def fix_up(email: Email, r: ReceiptExtraction) -> ReceiptExtraction:
 
     # Store: fall back to the sender's name; drop a repeated "(same name)".
     store = (r.store or "").strip()
+    if not store or PLATFORMS.search(store):
+        store = subject_store(email) or store
     m = re.fullmatch(r"(.+?)\s*\((.+)\)", store)
     if m and m.group(1).strip().lower() == m.group(2).strip().lower():
         store = m.group(1).strip()
@@ -168,4 +187,8 @@ def fix_up(email: Email, r: ReceiptExtraction) -> ReceiptExtraction:
             continue
         cleaned.append(text)
     r.items = cleaned
+
+    # No amount at all: most likely an ad or a status update, not a receipt.
+    if r.total is None:
+        r.is_receipt = False
     return r

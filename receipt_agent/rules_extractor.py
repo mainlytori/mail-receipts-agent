@@ -100,8 +100,27 @@ def sender_name(email: Email) -> str:
     return "" if GENERIC_SENDERS.search(name) else name
 
 
+PLATFORMS = re.compile(
+    r"wolt|glovo|yandex|яндекс|uber\s*eats|bolt|chocofood|deliveroo|doordash|kaspi", re.I
+)
+SUBJECT_STORE = re.compile(
+    r"(?:delivered|order from|receipt from|your .*? from|заказ из|заказ в|из ресторана|от)[:\s]+"
+    r"(.+?)(?:\s+\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?.*|\s+\d{4}-\d{2}-\d{2}.*)?$",
+    re.I,
+)
+
+
+def subject_store(email: Email) -> str:
+    """Restaurant or shop named in the subject, e.g. "Your order's delivered: KFC 17.10"."""
+    m = SUBJECT_STORE.search(clean(email.subject).strip())
+    return m.group(1).strip(" -–—:") if m else ""
+
+
 def _store(email: Email) -> str:
     name = re.sub(r"<.*?>", "", email.sender).strip().strip('"')
+    if name and PLATFORMS.search(name):
+        # Delivery apps send the email; the restaurant is usually in the subject.
+        return subject_store(email) or name
     if name:
         return name
     domain = re.search(r"@([\w.-]+)", email.sender)

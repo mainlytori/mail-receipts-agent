@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import base64
 import logging
+import socket
+import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Iterator
 
+from google.auth.exceptions import TransportError
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 from ..google_auth import google_credentials
 from ..models import Email
@@ -30,19 +34,16 @@ class GmailSource:
         creds = google_credentials(credentials_file, token_file)
         self.service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         self.query = query
-        self.account = self.service.users().getProfile(userId="me").execute()["emailAddress"]
+        self.account = _run(self.service.users().getProfile(userId="me"))["emailAddress"]
 
     def fetch(self, since_days: int) -> Iterator[Email]:
         q = f"{self.query} newer_than:{since_days}d"
         request = self.service.users().messages().list(userId="me", q=q, maxResults=100)
         while request is not None:
-            page = request.execute()
+            page = _run(request)
             for ref in page.get("messages", []):
-                msg = (
-                    self.service.users()
-                    .messages()
-                    .get(userId="me", id=ref["id"], format="full")
-                    .execute()
+                msg = _run(
+                    self.service.users().messages().get(userId="me", id=ref["id"], format="full")
                 )
                 yield self._to_email(msg)
             request = self.service.users().messages().list_next(request, page)
@@ -87,3 +88,19 @@ def _body_text(payload: dict) -> str:
     if html:
         return html_to_text("\n".join(html))
     return "\n".join(plain)
+
+
+def _run(request, tries: int = 5):
+    """Runs a Gmail request, waiting and retrying through short internet blips."""
+    for attempt in range(1, tries + 1):
+        try:
+            return request.execute()
+        except HttpError as e:
+            if e.resp.status not in (429, 500, 502, 503, 504) or attempt == tries:
+                raise
+        except (TransportError, ConnectionError, socket.timeout, TimeoutError, OSError):
+            if attempt == tries:
+                raise
+        wait = 2**attempt
+        log.warning("Internet hiccup talking to Gmail, retrying in %ds...", wait)
+        time.sleep(wait)

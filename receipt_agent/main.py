@@ -85,13 +85,31 @@ def build_sink(choose_folder: bool = False):
     sys.exit(f"OUTPUT must be 'sheets' or 'excel', not {output!r}")
 
 
+def _fetch_safely(source, days):
+    """Yields emails; if the connection drops midway, keeps the ones already read."""
+    it = source.fetch(days)
+    while True:
+        try:
+            yield next(it)
+        except StopIteration:
+            return
+        except Exception as e:
+            log.error("Couldn't read more emails from %s: %s", source.name, e)
+            return
+
+
 def run_once(sources, sink, extractor, seen: SeenStore, days: int, dry_run: bool) -> int:
     already_in_table = set() if dry_run else sink.existing_keys()
     rows: list[ReceiptRow] = []
     checked = 0
     for source in sources:
         log.info("Checking %s (%s), last %d days", source.name, source.account, days)
-        for email in source.fetch(days):
+        try:
+            emails = list(_fetch_safely(source, days))
+        except Exception as e:  # keep what we have instead of losing the whole run
+            log.error("Stopped reading %s early (%s). Saving what was found.", source.name, e)
+            emails = []
+        for email in emails:
             if email.key in seen or email.key in already_in_table:
                 continue
             checked += 1
