@@ -220,3 +220,24 @@ def test_sheet_link_or_id_both_work():
     from receipt_agent.sinks.google_sheets import _sheet_id
     assert _sheet_id("https://docs.google.com/spreadsheets/d/1AbC_d-9/edit#gid=0") == "1AbC_d-9"
     assert _sheet_id(" 1AbC_d-9 ") == "1AbC_d-9"
+
+
+def test_excel_goes_into_chosen_folder(tmp_path, monkeypatch):
+    from receipt_agent import main as m
+    monkeypatch.delenv("EXCEL_PATH", raising=False)
+    monkeypatch.setenv("OUTPUT_FOLDER", str(tmp_path))
+    assert m.excel_path(choose=False) == tmp_path / "Expenses.xlsx"
+
+
+def test_folder_picker_asks_when_no_folder_and_saves_it(tmp_path, monkeypatch):
+    from receipt_agent import folder_picker, main as m
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("EXCEL_PATH", raising=False)
+    monkeypatch.delenv("OUTPUT_FOLDER", raising=False)
+    target = tmp_path / "My Receipts"
+    target.mkdir()
+    import builtins
+    monkeypatch.setattr(builtins, "input", lambda prompt="": str(target))
+    monkeypatch.setitem(__import__("sys").modules, "tkinter", None)  # no window available
+    assert m.excel_path(choose=False) == target.resolve() / "Expenses.xlsx"
+    assert f"OUTPUT_FOLDER={target.resolve()}" in (tmp_path / ".env").read_text()

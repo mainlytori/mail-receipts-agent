@@ -12,7 +12,7 @@ For every new email that looks like a purchase, the AI reads it and fills in one
 
 Categories: Groceries, Food & Drinks, Shopping, Transport, Bills, Subscriptions, Health, Travel, Entertainment, Other.
 
-The table can be a **Google Sheet** (default: free, works on your phone, easy to share) or an **Excel file** on your computer.
+The table is an **Excel file** that the agent creates in any folder you choose (default), or a **Google Sheet** if you want it on your phone.
 
 ## How it works
 
@@ -74,8 +74,8 @@ The first run prints a short code and a link. Open the link, type the code and s
 
 ### 4. Choose where receipts go
 
-- **Google Sheets** (default): leave `OUTPUT=sheets`. If `GOOGLE_SHEET_ID` is empty, the first run creates a sheet called *Expenses (from email receipts)* and prints its link and ID. Put the ID in `.env` so later runs use the same sheet. To use your own sheet, copy the ID from its URL: `docs.google.com/spreadsheets/d/`**`THIS_PART`**`/edit`.
-- **Excel**: set `OUTPUT=excel` and, if you like, `EXCEL_PATH=expenses.xlsx`. Close the file in Excel before running.
+- **Excel in a folder you choose** (default, `OUTPUT=excel`): on the first run a "choose a folder" window pops up. Pick any folder (Documents, Desktop, a "Money" folder...) and the agent creates `Expenses.xlsx` there and remembers it. To move it to another folder later, run `python -m receipt_agent --choose-folder`. Close the file in Excel while the agent is adding rows.
+- **Google Sheets** (`OUTPUT=sheets`): if `GOOGLE_SHEET_ID` is empty, the first run creates a sheet called *Expenses (from email receipts)* and prints its link. Put that link (or just its ID) in `.env` as `GOOGLE_SHEET_ID=` so later runs use the same sheet. You can also paste the link of a sheet you made yourself.
 
 ## Run it
 
@@ -89,6 +89,7 @@ You choose: run it yourself whenever you want, or let it check automatically as 
 python -m receipt_agent              # check now (last 30 days)
 python -m receipt_agent --days 90    # look further back
 python -m receipt_agent --dry-run    # just print what it finds, write nothing
+python -m receipt_agent --choose-folder   # pick a different folder for the table
 python -m receipt_agent --every 60   # check every hour (overrides .env)
 python -m receipt_agent --every 0    # check once now, even if .env has a schedule
 ```
@@ -104,9 +105,10 @@ All settings live in `.env` (see `.env.example`):
 | `READER` | `ollama` (free local AI) or `rules` (no AI) | `ollama` |
 | `OLLAMA_MODEL` | Which Ollama model reads the emails | `qwen2.5:7b` |
 | `OLLAMA_HOST` | Where Ollama is running | `http://localhost:11434` |
-| `OUTPUT` | `sheets` or `excel` | `sheets` |
-| `GOOGLE_SHEET_ID` | Sheet to write to | creates one |
-| `EXCEL_PATH` | Excel file to write to | `expenses.xlsx` |
+| `OUTPUT` | `excel` or `sheets` | `excel` |
+| `OUTPUT_FOLDER` | Folder where `Expenses.xlsx` is created | asks on first run |
+| `EXCEL_PATH` | Exact Excel file path (overrides the folder) | |
+| `GOOGLE_SHEET_ID` | Sheet link or ID to write to | creates one |
 | `GMAIL_ENABLED` | Check Gmail | `true` |
 | `OUTLOOK_ENABLED` | Check Outlook | `false` |
 | `OUTLOOK_CLIENT_ID` | Azure app ID for Outlook | |

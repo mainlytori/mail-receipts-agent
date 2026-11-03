@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -52,12 +53,27 @@ def build_sources():
     return sources
 
 
-def build_sink():
-    output = os.getenv("OUTPUT", "sheets").lower()
+def excel_path(choose: bool) -> Path:
+    """Where the Excel table lives: EXCEL_PATH, or Expenses.xlsx in the chosen folder."""
+    if os.getenv("EXCEL_PATH") and not choose:
+        return Path(os.environ["EXCEL_PATH"]).expanduser()
+    folder = os.getenv("OUTPUT_FOLDER")
+    if choose or not folder or not Path(folder).expanduser().is_dir():
+        from .folder_picker import choose_folder
+
+        folder = str(choose_folder())
+        os.environ["OUTPUT_FOLDER"] = folder
+    return Path(folder).expanduser() / "Expenses.xlsx"
+
+
+def build_sink(choose_folder: bool = False):
+    output = os.getenv("OUTPUT", "excel").lower()
     if output == "excel":
         from .sinks.excel import ExcelSink
 
-        return ExcelSink(os.getenv("EXCEL_PATH", "expenses.xlsx"))
+        path = excel_path(choose_folder)
+        log.info("Saving receipts to %s", path)
+        return ExcelSink(str(path))
     if output == "sheets":
         from .sinks.google_sheets import GoogleSheetsSink
 
@@ -110,6 +126,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--dry-run", action="store_true", help="print receipts instead of writing them"
     )
+    parser.add_argument(
+        "--choose-folder",
+        action="store_true",
+        help="pick (or change) the folder where the Excel table is saved",
+    )
     args = parser.parse_args(argv)
 
     load_dotenv()
@@ -138,7 +159,7 @@ def main(argv: list[str] | None = None) -> None:
     days = args.days or int(os.getenv("LOOKBACK_DAYS", "30"))
     every = args.every if args.every is not None else int(os.getenv("CHECK_EVERY_MINUTES") or 0)
     sources = build_sources()
-    sink = None if args.dry_run else build_sink()
+    sink = None if args.dry_run else build_sink(args.choose_folder)
     seen = SeenStore(os.getenv("STATE_FILE", "seen_emails.json"))
 
     while True:
