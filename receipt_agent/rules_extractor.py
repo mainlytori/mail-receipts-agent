@@ -42,7 +42,7 @@ CATEGORY_WORDS = {
     Category.GROCERIES: "grocery|supermarket|market|magnum|small|walmart|tesco|lidl|aldi|instacart",
     Category.FOOD_DRINKS: "restaurant|cafe|coffee|starbucks|pizza|burger|hardee|sushi|суши|бургер|кафе|ресторан|doner|донер|wolt|glovo|uber eats|deliveroo|doordash|kfc|mcdonald",
     Category.TRANSPORT: "uber|bolt|lyft|yandex go|taxi|metro|fuel|parking",
-    Category.SUBSCRIPTIONS: "subscription|netflix|spotify|apple\\.com|icloud|youtube premium|patreon|membership|renewal",
+    Category.SUBSCRIPTIONS: "subscription|anthropic|claude pro|openai|chatgpt|midjourney|canva|adobe|google one|yandex plus|netflix|spotify|apple\\.com|icloud|youtube premium|patreon|membership|renewal",
     Category.BILLS: "electric|water bill|internet|mobile plan|utility|beeline|kcell|tele2|rent",
     Category.HEALTH: "pharmacy|apteka|clinic|dental|doctor|health",
     Category.TRAVEL: "airline|air astana|booking\\.com|airbnb|hotel|flight|expedia|ticket",
