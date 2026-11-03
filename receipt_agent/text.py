@@ -40,6 +40,7 @@ def html_to_text(raw: str) -> str:
     parser.feed(raw)
     parser.close()
     text = html.unescape("".join(parser.parts))
+    text = re.sub("[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]", "", text)
     text = re.sub(r"[ \t ]+", " ", text)
     text = re.sub(r" *\n *", "\n", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()

@@ -289,3 +289,13 @@ def test_fix_up_category_and_order_number_even_when_rules_unsure():
 
 def test_long_email_is_shortened_for_the_ai():
     assert len(ollama_mod._short("x" * 50000)) < 6100
+
+
+def test_wolt_style_total_with_hidden_mark():
+    email = make_email(16, "Your order's delivered: Okadzaki")
+    email.body = "| Item | | KZT ‎1,200.00 | |\n| Total | | KZT ‎4,763.00 | |"
+    from receipt_agent.rules_extractor import details
+    d = details(email)
+    assert (d.total, d.currency) == (4763.0, "KZT")
+    r = ollama_mod.fix_up(email, ReceiptExtraction(is_receipt=True, store="Okadzaki", total=None, currency=None))
+    assert (r.total, r.currency) == (4763.0, "KZT")

@@ -78,6 +78,7 @@ def _money(match: re.Match) -> tuple[float | None, str | None]:
 
 def currencies_in(text: str) -> set[str]:
     """Currency codes the text actually shows next to amounts."""
+    text = clean(text)
     found = set()
     for sym, code in SYMBOLS.items():
         if re.search(re.escape(sym) + r"\s?\d|\d\s?" + re.escape(sym), text):
@@ -107,9 +108,17 @@ def _store(email: Email) -> str:
     return domain.group(1).split(".")[-2].title() if domain else ""
 
 
+INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]")
+
+
+def clean(text: str) -> str:
+    """Removes invisible direction marks that some receipts put inside amounts."""
+    return INVISIBLE.sub("", text).replace("\u00a0", " ")
+
+
 def details(email: Email) -> ReceiptExtraction:
     """Everything the text rules can find, without deciding if it's a receipt."""
-    text = f"{email.subject}\n{email.body}"
+    text = clean(f"{email.subject}\n{email.body}")
     totals = [t for t in (_money(m) for m in TOTAL_RE.finditer(text)) if t[0]]
     total, currency = totals[-1] if totals else (None, None)  # last "Total" is usually final
     tax_match = TAX_RE.search(text)
