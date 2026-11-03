@@ -32,10 +32,12 @@ class GoogleSheetsSink:
                 fields="spreadsheetId",
             ).execute()
             self.book = gc.open_by_key(created["spreadsheetId"])
+            from dotenv import set_key
+
+            set_key(".env", "GOOGLE_SHEET_ID", self.book.id, quote_mode="never")
             print(
-                f"\nCreated a new Google Sheet: {self.book.url}\n"
-                f"Put this line in your .env so the next runs use it:\n"
-                f"GOOGLE_SHEET_ID={self.book.id}\n"
+                f"\nCreated your Google Sheet: {self.book.url}\n"
+                "It's in your Google Drive. You can move it to any folder there and it keeps working.\n"
             )
         try:
             self.ws = self.book.worksheet(TAB)

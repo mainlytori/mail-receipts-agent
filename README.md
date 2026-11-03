@@ -75,7 +75,7 @@ The first run prints a short code and a link. Open the link, type the code and s
 ### 4. Choose where receipts go
 
 - **Excel in a folder you choose** (default, `OUTPUT=excel`): on the first run a "choose a folder" window pops up. Pick any folder (Documents, Desktop, a "Money" folder...) and the agent creates `Expenses.xlsx` there and remembers it. To move it to another folder later, run `python -m receipt_agent --choose-folder`. Close the file in Excel while the agent is adding rows.
-- **Google Sheets** (`OUTPUT=sheets`): if `GOOGLE_SHEET_ID` is empty, the first run creates a sheet called *Expenses (from email receipts)* and prints its link. Put that link (or just its ID) in `.env` as `GOOGLE_SHEET_ID=` so later runs use the same sheet. You can also paste the link of a sheet you made yourself.
+- **Google Sheets** (`OUTPUT=sheets`): if `GOOGLE_SHEET_ID` is empty, the first run creates a sheet called *Expenses (from email receipts)* in your Google Drive, prints its link and remembers it. Move it to any Drive folder you like and it keeps working. You can also paste the link of a sheet you made yourself.
 
 ## Run it
 
