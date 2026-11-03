@@ -1,0 +1,12 @@
+anthropic>=2.4
+pydantic>=2
+python-dotenv>=1.0
+# Gmail + Google Sheets
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.2
+gspread>=6.0
+# Outlook
+msal>=1.28
+requests>=2.31
+# Excel
+openpyxl>=3.1

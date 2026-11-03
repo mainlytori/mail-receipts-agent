@@ -1,0 +1,8 @@
+.env
+credentials.json
+token_*.json
+seen_emails.json
+*.xlsx
+__pycache__/
+.venv/
+.pytest_cache/
