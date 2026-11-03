@@ -107,3 +107,33 @@ def test_rows_already_in_table_are_not_reread(tmp_path):
     extractor = FakeExtractor()
     run_once([FakeSource([make_email(1)])], sink, extractor, SeenStore(str(tmp_path / "s.json")), 30, False)
     assert extractor.calls == 0
+
+
+from receipt_agent.rules_extractor import RulesExtractor
+
+
+def test_rules_extractor_reads_a_simple_receipt():
+    email = make_email(5, "Your Wolt order receipt")
+    email.sender = "Wolt <info@wolt.com>"
+    email.body = "Order number: AB-12345\nSubtotal 4 500 тг\nTotal: 5 200 тг\nPaid with Visa ending 4242"
+    r = RulesExtractor().extract(email)
+    assert r.is_receipt
+    assert r.total == 5200
+    assert r.currency == "KZT"
+    assert r.store == "Wolt"
+    assert r.order_number == "AB-12345"
+    assert r.category == Category.FOOD_DRINKS
+    assert r.payment_method == "Visa ****4242"
+
+
+def test_rules_extractor_handles_decimals_and_symbols():
+    email = make_email(6, "Receipt from Coffee Place")
+    email.body = "Latte | $4.00\nTax | $0.35\nTotal | $1,234.50"
+    r = RulesExtractor().extract(email)
+    assert (r.total, r.currency, r.tax) == (1234.5, "USD", 0.35)
+
+
+def test_rules_extractor_skips_newsletters():
+    email = make_email(7, "Weekly news")
+    email.body = "Check out our new arrivals!"
+    assert RulesExtractor().extract(email).is_receipt is False

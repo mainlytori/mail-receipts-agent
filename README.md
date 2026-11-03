@@ -33,9 +33,21 @@ pip install -r requirements.txt
 cp .env.example .env             # Windows: copy .env.example .env
 ```
 
-### 1. Claude API key
+### 1. Choose how emails are read
 
-Create a key at [platform.claude.com/settings/keys](https://platform.claude.com/settings/keys) and put it in `.env` as `ANTHROPIC_API_KEY=...`.
+Set `READER` in `.env`:
+
+| `READER` | How it works | Cost |
+|---|---|---|
+| `claude` (default) | Claude AI reads each receipt. Works with any store's format and fills in items and category. | A small charge per email (see below) |
+| `rules` | Fixed text rules look for "Total", "Order number" and so on. No AI, no account needed. | Free, but misses unusual receipts and usually leaves items empty |
+
+For `READER=claude`, create a key at [platform.claude.com/settings/keys](https://platform.claude.com/settings/keys) and put it in `.env` as `ANTHROPIC_API_KEY=...`. Then pick the model with `CLAUDE_MODEL`:
+
+- `claude-haiku-5-5` (default): the cheapest. A rough estimate is about 5 cents per 100 receipt emails.
+- `claude-opus-5-5`: the most accurate, at about 40 times the cost (roughly $2 per 100).
+
+Only emails that pass the keyword search are read, and each email is read only once.
 
 ### 2. Set up Google (for Gmail and/or Google Sheets)
 
@@ -88,7 +100,8 @@ All settings live in `.env` (see `.env.example`):
 
 | Setting | Meaning | Default |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Your Claude API key | required |
+| `READER` | `claude` or `rules` | `claude` |
+| `ANTHROPIC_API_KEY` | Your Claude API key | needed for `claude` |
 | `OUTPUT` | `sheets` or `excel` | `sheets` |
 | `GOOGLE_SHEET_ID` | Sheet to write to | creates one |
 | `EXCEL_PATH` | Excel file to write to | `expenses.xlsx` |
@@ -97,12 +110,12 @@ All settings live in `.env` (see `.env.example`):
 | `OUTLOOK_CLIENT_ID` | Azure app ID for Outlook | |
 | `CHECK_EVERY_MINUTES` | Check automatically every N minutes; `0` = run once | `0` |
 | `LOOKBACK_DAYS` | Days to look back | `30` |
-| `CLAUDE_MODEL` | Claude model | `claude-opus-5-5` |
+| `CLAUDE_MODEL` | Claude model | `claude-haiku-5-5` |
 | `GMAIL_QUERY` | Gmail search used to find candidates | receipt keywords |
 
 ## Privacy
 
-Everything runs on your computer. Email text is sent only to the Claude API to read the receipt. Your passwords are never stored; sign-in tokens stay in local files that `.gitignore` keeps out of git.
+Everything runs on your computer. With `READER=claude`, email text is sent only to the Claude API to read the receipt; with `READER=rules` nothing leaves your computer except the calls to your own mail and sheet. Your passwords are never stored; sign-in tokens stay in local files that `.gitignore` keeps out of git.
 
 ## Development
 
@@ -115,5 +128,6 @@ Code layout:
 
 - `receipt_agent/sources/` reads Gmail and Outlook
 - `receipt_agent/extractor.py` asks Claude to pull out the receipt fields
+- `receipt_agent/rules_extractor.py` is the free, no-AI version
 - `receipt_agent/sinks/` writes to Google Sheets or Excel
 - `receipt_agent/main.py` ties it together

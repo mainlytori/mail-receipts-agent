@@ -118,14 +118,22 @@ def main(argv: list[str] | None = None) -> None:
     for noisy in ("httpx", "httpx2", "googleapiclient", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        sys.exit("ANTHROPIC_API_KEY is missing. Add it to your .env file (see the README).")
+    reader = os.getenv("READER", "claude").lower()
+    if reader == "rules":
+        from .rules_extractor import RulesExtractor
+
+        extractor = RulesExtractor()
+    elif reader == "claude":
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            sys.exit("ANTHROPIC_API_KEY is missing. Add it to .env, or set READER=rules (see README).")
+        extractor = ReceiptExtractor(os.getenv("CLAUDE_MODEL", "claude-haiku-5-5"))
+    else:
+        sys.exit(f"READER must be 'claude' or 'rules', not {reader!r}")
 
     days = args.days or int(os.getenv("LOOKBACK_DAYS", "30"))
     every = args.every if args.every is not None else int(os.getenv("CHECK_EVERY_MINUTES") or 0)
     sources = build_sources()
     sink = None if args.dry_run else build_sink()
-    extractor = ReceiptExtractor(os.getenv("CLAUDE_MODEL", "claude-opus-5-5"))
     seen = SeenStore(os.getenv("STATE_FILE", "seen_emails.json"))
 
     while True:
