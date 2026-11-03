@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument("--days", type=int, default=None, help="how far back to look (default 30)")
     parser.add_argument(
-        "--every", type=int, metavar="MINUTES", help="keep running and check every N minutes"
+        "--every", type=int, metavar="MINUTES", help="keep running and check every N minutes (0 = run once)"
     )
     parser.add_argument(
         "--dry-run", action="store_true", help="print receipts instead of writing them"
@@ -122,6 +122,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit("ANTHROPIC_API_KEY is missing. Add it to your .env file (see the README).")
 
     days = args.days or int(os.getenv("LOOKBACK_DAYS", "30"))
+    every = args.every if args.every is not None else int(os.getenv("CHECK_EVERY_MINUTES") or 0)
     sources = build_sources()
     sink = None if args.dry_run else build_sink()
     extractor = ReceiptExtractor(os.getenv("CLAUDE_MODEL", "claude-opus-5-5"))
@@ -129,10 +130,10 @@ def main(argv: list[str] | None = None) -> None:
 
     while True:
         run_once(sources, sink, extractor, seen, days, args.dry_run)
-        if not args.every:
+        if not every:
             break
-        log.info("Next check in %d minutes (Ctrl+C to stop)", args.every)
-        time.sleep(args.every * 60)
+        log.info("Next check in %d minutes (Ctrl+C to stop)", every)
+        time.sleep(every * 60)
         days = 2  # after the first pass, only look at recent mail
 
 

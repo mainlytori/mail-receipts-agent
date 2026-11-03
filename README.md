@@ -66,11 +66,18 @@ The first run prints a short code and a link. Open the link, type the code and s
 
 ## Run it
 
+You choose: run it yourself whenever you want, or let it check automatically as often as you like.
+
+**Automatically:** set `CHECK_EVERY_MINUTES` in `.env` (for example `60` for every hour, `1440` for once a day) and start it once with `python -m receipt_agent`. It keeps running and checks on that schedule until you press Ctrl+C.
+
+**Yourself:** leave `CHECK_EVERY_MINUTES=0` and run the command whenever you want an update.
+
 ```bash
-python -m receipt_agent              # check the last 30 days once
+python -m receipt_agent              # check now (last 30 days)
 python -m receipt_agent --days 90    # look further back
 python -m receipt_agent --dry-run    # just print what it finds, write nothing
-python -m receipt_agent --every 60   # keep running, check every hour
+python -m receipt_agent --every 60   # check every hour (overrides .env)
+python -m receipt_agent --every 0    # check once now, even if .env has a schedule
 ```
 
 To run it automatically without leaving a window open, schedule `python -m receipt_agent --days 2` with cron (Mac/Linux) or Task Scheduler (Windows).
@@ -88,6 +95,7 @@ All settings live in `.env` (see `.env.example`):
 | `GMAIL_ENABLED` | Check Gmail | `true` |
 | `OUTLOOK_ENABLED` | Check Outlook | `false` |
 | `OUTLOOK_CLIENT_ID` | Azure app ID for Outlook | |
+| `CHECK_EVERY_MINUTES` | Check automatically every N minutes; `0` = run once | `0` |
 | `LOOKBACK_DAYS` | Days to look back | `30` |
 | `CLAUDE_MODEL` | Claude model | `claude-opus-5-5` |
 | `GMAIL_QUERY` | Gmail search used to find candidates | receipt keywords |
