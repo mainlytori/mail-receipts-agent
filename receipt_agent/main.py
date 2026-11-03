@@ -111,6 +111,8 @@ def run_once(sources, sink, extractor, seen: SeenStore, days: int, dry_run: bool
         sink.append(rows)
         seen.save()
     log.info("Checked %d new emails, added %d receipts", checked, len(rows))
+    if not dry_run:
+        print(f"\nYour expenses table: {sink.location}\n")
     return len(rows)
 
 
@@ -127,6 +129,9 @@ def main(argv: list[str] | None = None) -> None:
         "--dry-run", action="store_true", help="print receipts instead of writing them"
     )
     parser.add_argument(
+        "--open", action="store_true", help="open your expenses table and exit"
+    )
+    parser.add_argument(
         "--choose-folder",
         action="store_true",
         help="pick (or change) the folder where the Excel table is saved",
@@ -137,6 +142,19 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
     for noisy in ("httpx", "httpx2", "googleapiclient", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+
+    if args.open:
+        import webbrowser
+
+        location = build_sink(args.choose_folder).location
+        print(f"Opening {location}")
+        if location.startswith("http"):
+            webbrowser.open(location)
+        elif hasattr(os, "startfile"):
+            os.startfile(location)  # Windows: opens in Excel
+        else:
+            webbrowser.open(Path(location).as_uri())
+        return
 
     reader = os.getenv("READER", "ollama").lower()
     if reader == "rules":

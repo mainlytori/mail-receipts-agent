@@ -16,6 +16,10 @@ class ExcelSink:
     def __init__(self, path: str):
         self.path = Path(path)
 
+    @property
+    def location(self) -> str:
+        return str(self.path.resolve())
+
     def _open(self):
         if self.path.exists():
             wb = load_workbook(self.path)

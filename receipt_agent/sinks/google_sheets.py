@@ -53,6 +53,10 @@ class GoogleSheetsSink:
             self.ws.format("1:1", {"textFormat": {"bold": True}})
             self.ws.freeze(rows=1)
 
+    @property
+    def location(self) -> str:
+        return self.book.url
+
     def existing_keys(self) -> set[str]:
         col = ReceiptRow.HEADERS.index("Email ID") + 1
         return set(self.ws.col_values(col)[1:])

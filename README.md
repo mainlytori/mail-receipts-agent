@@ -89,12 +89,17 @@ You choose: run it yourself whenever you want, or let it check automatically as 
 python -m receipt_agent              # check now (last 30 days)
 python -m receipt_agent --days 90    # look further back
 python -m receipt_agent --dry-run    # just print what it finds, write nothing
+python -m receipt_agent --open       # open your expenses table
 python -m receipt_agent --choose-folder   # pick a different folder for the table
 python -m receipt_agent --every 60   # check every hour (overrides .env)
 python -m receipt_agent --every 0    # check once now, even if .env has a schedule
 ```
 
 To run it automatically without leaving a window open, schedule `python -m receipt_agent --days 2` with cron (Mac/Linux) or Task Scheduler (Windows).
+
+### Where's my table?
+
+Every run ends by printing where your table is: the Google Sheet link, or the full path to `Expenses.xlsx`. To open it any time, run `python -m receipt_agent --open`. You can also find a Google Sheet by searching "Expenses" at [sheets.google.com](https://sheets.google.com).
 
 ## Settings
 
