@@ -2,7 +2,9 @@
 
 Finds receipts in your **Gmail** and **Outlook** inboxes and adds them to a spreadsheet, so your expenses are organized without typing anything.
 
-For every new email that looks like a purchase, Claude reads it and fills in one row:
+It's **completely free**: the AI runs on your own computer through [Ollama](https://ollama.com), so there are no API keys and no per-email costs.
+
+For every new email that looks like a purchase, the AI reads it and fills in one row:
 
 | Date | Store | Total | Currency | Tax | Category | Payment method | Items | Order number | Email account | Email subject | Link to email |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -15,14 +17,14 @@ The table can be a **Google Sheet** (default: free, works on your phone, easy to
 ## How it works
 
 1. Each inbox is searched for likely receipt emails (words like *receipt*, *order*, *invoice*, *payment*).
-2. Claude reads each one and decides whether money was actually paid. Ads, newsletters and shipping updates are skipped.
+2. A local AI model reads each one and decides whether money was actually paid. Ads, newsletters and shipping updates are skipped.
 3. Receipts are added as new rows. Every email is read only once, so running it again never makes duplicates.
 
 Access is **read-only**: the agent can't send, delete or change your emails.
 
 ## Setup (about 15 minutes, once)
 
-You need Python 3.10 or newer.
+You need Python 3.10 or newer and a computer with at least 8 GB of RAM (16 GB recommended).
 
 ```bash
 git clone <this repo>
@@ -33,21 +35,20 @@ pip install -r requirements.txt
 cp .env.example .env             # Windows: copy .env.example .env
 ```
 
-### 1. Choose how emails are read
+### 1. Install Ollama (the free AI)
 
-Set `READER` in `.env`:
+1. Download and install Ollama from [ollama.com/download](https://ollama.com/download) (Mac, Windows or Linux) and open it.
+2. In a terminal, download the AI model (about 4.7 GB, once):
 
-| `READER` | How it works | Cost |
-|---|---|---|
-| `claude` (default) | Claude AI reads each receipt. Works with any store's format and fills in items and category. | A small charge per email (see below) |
-| `rules` | Fixed text rules look for "Total", "Order number" and so on. No AI, no account needed. | Free, but misses unusual receipts and usually leaves items empty |
+   ```bash
+   ollama pull qwen2.5:7b
+   ```
 
-For `READER=claude`, create a key at [platform.claude.com/settings/keys](https://platform.claude.com/settings/keys) and put it in `.env` as `ANTHROPIC_API_KEY=...`. Then pick the model with `CLAUDE_MODEL`:
+That's it, nothing to sign up for. Ollama must be running whenever the agent runs.
 
-- `claude-haiku-5-5` (default): the cheapest. A rough estimate is about 5 cents per 100 receipt emails.
-- `claude-opus-5-5`: the most accurate, at about 40 times the cost (roughly $2 per 100).
+**Which model?** `qwen2.5:7b` (default) is a good balance and handles English and Russian receipts. It works best with 16 GB of RAM. On a computer with 8 GB, use the smaller `qwen2.5:3b` (`ollama pull qwen2.5:3b`, then set `OLLAMA_MODEL=qwen2.5:3b` in `.env`). It's faster but makes more mistakes. Any other Ollama model works too.
 
-Only emails that pass the keyword search are read, and each email is read only once.
+**No AI at all:** set `READER=rules` to use fixed text rules instead. They look for words like "Total" and "Order number". This is very fast and needs no Ollama, but it misses unusual receipts and usually leaves the items empty.
 
 ### 2. Set up Google (for Gmail and/or Google Sheets)
 
@@ -100,8 +101,9 @@ All settings live in `.env` (see `.env.example`):
 
 | Setting | Meaning | Default |
 |---|---|---|
-| `READER` | `claude` or `rules` | `claude` |
-| `ANTHROPIC_API_KEY` | Your Claude API key | needed for `claude` |
+| `READER` | `ollama` (free local AI) or `rules` (no AI) | `ollama` |
+| `OLLAMA_MODEL` | Which Ollama model reads the emails | `qwen2.5:7b` |
+| `OLLAMA_HOST` | Where Ollama is running | `http://localhost:11434` |
 | `OUTPUT` | `sheets` or `excel` | `sheets` |
 | `GOOGLE_SHEET_ID` | Sheet to write to | creates one |
 | `EXCEL_PATH` | Excel file to write to | `expenses.xlsx` |
@@ -110,12 +112,11 @@ All settings live in `.env` (see `.env.example`):
 | `OUTLOOK_CLIENT_ID` | Azure app ID for Outlook | |
 | `CHECK_EVERY_MINUTES` | Check automatically every N minutes; `0` = run once | `0` |
 | `LOOKBACK_DAYS` | Days to look back | `30` |
-| `CLAUDE_MODEL` | Claude model | `claude-haiku-5-5` |
 | `GMAIL_QUERY` | Gmail search used to find candidates | receipt keywords |
 
 ## Privacy
 
-Everything runs on your computer. With `READER=claude`, email text is sent only to the Claude API to read the receipt; with `READER=rules` nothing leaves your computer except the calls to your own mail and sheet. Your passwords are never stored; sign-in tokens stay in local files that `.gitignore` keeps out of git.
+Everything runs on your computer, including the AI. Your emails are never sent to any AI company. Your passwords are never stored; sign-in tokens stay in local files that `.gitignore` keeps out of git.
 
 ## Development
 
@@ -127,7 +128,7 @@ pytest
 Code layout:
 
 - `receipt_agent/sources/` reads Gmail and Outlook
-- `receipt_agent/extractor.py` asks Claude to pull out the receipt fields
-- `receipt_agent/rules_extractor.py` is the free, no-AI version
+- `receipt_agent/extractor.py` asks the local Ollama model to pull out the receipt fields
+- `receipt_agent/rules_extractor.py` is the no-AI version
 - `receipt_agent/sinks/` writes to Google Sheets or Excel
 - `receipt_agent/main.py` ties it together

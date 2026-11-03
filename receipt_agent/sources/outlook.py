@@ -20,7 +20,7 @@ GRAPH = "https://graph.microsoft.com/v1.0"
 SCOPES = ["Mail.Read", "User.Read"]
 
 # Graph can't combine a date filter with free-text search, so we filter by keyword here
-# before Claude reads anything.
+# before the AI reads anything.
 KEYWORDS = re.compile(
     r"receipt|order|invoice|payment|purchase|paid|subscription|чек|заказ|оплат",
     re.IGNORECASE,

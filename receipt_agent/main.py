@@ -10,7 +10,6 @@ import time
 
 from dotenv import load_dotenv
 
-from .extractor import ReceiptExtractor
 from .models import ReceiptRow
 from .state import SeenStore
 
@@ -118,17 +117,23 @@ def main(argv: list[str] | None = None) -> None:
     for noisy in ("httpx", "httpx2", "googleapiclient", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-    reader = os.getenv("READER", "claude").lower()
+    reader = os.getenv("READER", "ollama").lower()
     if reader == "rules":
         from .rules_extractor import RulesExtractor
 
         extractor = RulesExtractor()
-    elif reader == "claude":
-        if not os.getenv("ANTHROPIC_API_KEY"):
-            sys.exit("ANTHROPIC_API_KEY is missing. Add it to .env, or set READER=rules (see README).")
-        extractor = ReceiptExtractor(os.getenv("CLAUDE_MODEL", "claude-haiku-5-5"))
+    elif reader == "ollama":
+        from .extractor import OllamaError, OllamaExtractor
+
+        try:
+            extractor = OllamaExtractor(
+                os.getenv("OLLAMA_MODEL", "qwen2.5:7b"),
+                os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+            )
+        except OllamaError as e:
+            sys.exit(str(e))
     else:
-        sys.exit(f"READER must be 'claude' or 'rules', not {reader!r}")
+        sys.exit(f"READER must be 'ollama' or 'rules', not {reader!r}")
 
     days = args.days or int(os.getenv("LOOKBACK_DAYS", "30"))
     every = args.every if args.every is not None else int(os.getenv("CHECK_EVERY_MINUTES") or 0)

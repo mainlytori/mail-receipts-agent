@@ -16,7 +16,7 @@ from ..text import html_to_text
 
 log = logging.getLogger(__name__)
 
-# Gmail's own search narrows things down before Claude reads anything.
+# Gmail's own search narrows things down before the AI reads anything.
 DEFAULT_QUERY = (
     "(receipt OR order OR invoice OR payment OR purchase OR paid OR subscription "
     "OR чек OR заказ OR оплата) -category:promotions"

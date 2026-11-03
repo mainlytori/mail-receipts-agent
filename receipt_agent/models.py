@@ -42,7 +42,7 @@ class Category(str, Enum):
 
 
 class ReceiptExtraction(BaseModel):
-    """What Claude returns for one email."""
+    """What the AI returns for one email."""
 
     is_receipt: bool = Field(
         description="True only if the email confirms money was actually paid "

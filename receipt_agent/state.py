@@ -1,4 +1,4 @@
-"""Remembers which emails were already checked, so each one is read by Claude only once."""
+"""Remembers which emails were already checked, so each one is read by the AI only once."""
 
 from __future__ import annotations
 

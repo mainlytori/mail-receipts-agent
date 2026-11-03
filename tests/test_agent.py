@@ -88,7 +88,7 @@ def test_run_once_writes_receipts_and_skips_seen(tmp_path):
     source = FakeSource([make_email(1), make_email(2, "Weekly newsletter")])
 
     assert run_once([source], sink, extractor, seen, 30, dry_run=False) == 1
-    # Second run: nothing new, Claude isn't called again.
+    # Second run: nothing new, the AI isn't called again.
     assert run_once([source], sink, extractor, SeenStore(str(tmp_path / "seen.json")), 30, False) == 0
     assert extractor.calls == 2
 
@@ -137,3 +137,55 @@ def test_rules_extractor_skips_newsletters():
     email = make_email(7, "Weekly news")
     email.body = "Check out our new arrivals!"
     assert RulesExtractor().extract(email).is_receipt is False
+
+
+import json as _json
+
+from receipt_agent import extractor as ollama_mod
+
+
+class _Resp:
+    def __init__(self, data):
+        self.data = data
+
+    def json(self):
+        return self.data
+
+    def raise_for_status(self):
+        pass
+
+
+def test_ollama_extractor_sends_schema_and_parses_answer(monkeypatch):
+    sent = {}
+    answer = {"is_receipt": True, "store": "Wolt", "total": 5200, "currency": "KZT",
+              "category": "Food & Drinks", "items": ["Pizza"]}
+    monkeypatch.setattr(ollama_mod.requests, "get",
+                        lambda url, timeout: _Resp({"models": [{"name": "qwen2.5:7b"}]}))
+
+    def fake_post(url, json, timeout):
+        sent.update(json)
+        return _Resp({"message": {"content": _json.dumps(answer)}})
+
+    monkeypatch.setattr(ollama_mod.requests, "post", fake_post)
+    r = ollama_mod.OllamaExtractor("qwen2.5:7b").extract(make_email(8))
+    assert r.store == "Wolt" and r.total == 5200 and r.category == Category.FOOD_DRINKS
+    assert "$ref" not in _json.dumps(sent["format"])
+    assert sent["stream"] is False
+
+
+def test_ollama_extractor_explains_missing_model(monkeypatch):
+    monkeypatch.setattr(ollama_mod.requests, "get", lambda url, timeout: _Resp({"models": []}))
+    try:
+        ollama_mod.OllamaExtractor("qwen2.5:7b")
+    except ollama_mod.OllamaError as e:
+        assert "ollama pull qwen2.5:7b" in str(e)
+    else:
+        raise AssertionError("expected OllamaError")
+
+
+def test_ollama_bad_answer_is_skipped(monkeypatch):
+    monkeypatch.setattr(ollama_mod.requests, "get",
+                        lambda url, timeout: _Resp({"models": [{"name": "qwen2.5:7b"}]}))
+    monkeypatch.setattr(ollama_mod.requests, "post",
+                        lambda url, json, timeout: _Resp({"message": {"content": "not json"}}))
+    assert ollama_mod.OllamaExtractor("qwen2.5:7b").extract(make_email(9)) is None
