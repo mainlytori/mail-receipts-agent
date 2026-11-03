@@ -10,7 +10,7 @@ import requests
 from pydantic import ValidationError
 
 from .models import Category, Email, ReceiptExtraction
-from .rules_extractor import RulesExtractor, currencies_in, sender_name
+from .rules_extractor import RulesExtractor, currencies_in, details, sender_name
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class OllamaExtractor:
             f"From: {email.sender}\n"
             f"Subject: {email.subject}\n"
             f"Received: {email.received_at.isoformat()}\n\n"
-            f"<email_body>\n{email.body}\n</email_body>"
+            f"<email_body>\n{_short(email.body)}\n</email_body>"
         )
         payload = {
             "model": self.model,
@@ -93,6 +93,17 @@ class OllamaExtractor:
         return None
 
 
+MAX_BODY = 6000
+
+
+def _short(body: str) -> str:
+    """Keeps the email small enough for a laptop AI. The total and details are usually
+    near the top; the text rules still see the whole email as a safety net."""
+    if len(body) <= MAX_BODY:
+        return body
+    return body[:MAX_BODY] + "\n[... rest of the email cut ...]"
+
+
 def _inline_refs(schema: dict) -> dict:
     """Replaces "$ref" links with the definitions themselves, for simpler local models."""
     defs = schema.pop("$defs", {})
@@ -113,9 +124,7 @@ def fix_up(email: Email, r: ReceiptExtraction) -> ReceiptExtraction:
     """Fixes common small-model mistakes using what the email itself shows."""
     if not r.is_receipt:
         return r
-    rules = RulesExtractor().extract(email)
-    if not rules.is_receipt:
-        rules = ReceiptExtraction(is_receipt=False)
+    rules = details(email)
 
     # Store: fall back to the sender's name; drop a repeated "(same name)".
     store = (r.store or "").strip()
@@ -129,8 +138,11 @@ def fix_up(email: Email, r: ReceiptExtraction) -> ReceiptExtraction:
         r.total = rules.total
     if not r.payment_method:
         r.payment_method = rules.payment_method
-    if not r.order_number:
-        r.order_number = rules.order_number
+    # Order number: a short code only, never a chunk of the email.
+    order = (r.order_number or "").strip()
+    if not order or len(order) > 40 or re.search(r"\s{2,}|https?://|\n", order):
+        order = rules.order_number or ""
+    r.order_number = order[:40] or None
 
     # Currency: trust the symbols actually shown in the email.
     seen = currencies_in(f"{email.subject}\n{email.body}")

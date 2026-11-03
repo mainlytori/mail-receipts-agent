@@ -17,7 +17,7 @@ MONEY = rf"(?:(?P<sym>[$€£₸₽¥₹₺])\s?|(?P<code>{CODES})\s?)?(?P<amt>{
 
 TOTAL_RE = re.compile(
     r"(?:grand\s+total|order\s+total|total\s+paid|amount\s+paid|amount\s+charged|total"
-    r"|итого|сумма\s+к\s+оплате|к\s+оплате|всего|оплачено|сумма)"
+    r"|итого|сумма\s+к\s+оплате|к\s+оплате|всего|оплачено)"
     # anything that isn't a number between the word and the amount: ":", "|", dots, line breaks
     r"[^\d$€£₸₽¥₹₺]{0,40}?" + MONEY,
     re.IGNORECASE,
@@ -107,32 +107,38 @@ def _store(email: Email) -> str:
     return domain.group(1).split(".")[-2].title() if domain else ""
 
 
+def details(email: Email) -> ReceiptExtraction:
+    """Everything the text rules can find, without deciding if it's a receipt."""
+    text = f"{email.subject}\n{email.body}"
+    totals = [t for t in (_money(m) for m in TOTAL_RE.finditer(text)) if t[0]]
+    total, currency = totals[-1] if totals else (None, None)  # last "Total" is usually final
+    tax_match = TAX_RE.search(text)
+    order = ORDER_RE.search(text)
+    card = CARD_RE.search(text)
+    payment = None
+    if card:
+        payment = card.group(1).title() + (f" ****{card.group(2)}" if card.group(2) else "")
+    return ReceiptExtraction(
+        is_receipt=bool(totals) and bool(RECEIPT_WORDS.search(text)),
+        store=_store(email),
+        total=total,
+        currency=currency,
+        tax=_money(tax_match)[0] if tax_match else None,
+        category=keyword_category(email),
+        payment_method=payment,
+        order_number=order.group(1) if order else None,
+    )
+
+
+def keyword_category(email: Email) -> Category:
+    haystack = f"{email.sender} {email.subject} {email.body[:2000]}".lower()
+    return next(
+        (cat for cat, words in CATEGORY_WORDS.items() if re.search(words, haystack)),
+        Category.OTHER,
+    )
+
+
 class RulesExtractor:
     def extract(self, email: Email) -> ReceiptExtraction | None:
-        text = f"{email.subject}\n{email.body}"
-        totals = [_money(m) for m in TOTAL_RE.finditer(text)]
-        totals = [t for t in totals if t[0]]
-        if not totals or not RECEIPT_WORDS.search(text):
-            return ReceiptExtraction(is_receipt=False)
-        total, currency = totals[-1]  # the last "Total" is usually the final amount
-        tax_match = TAX_RE.search(text)
-        order = ORDER_RE.search(text)
-        card = CARD_RE.search(text)
-        payment = None
-        if card:
-            payment = card.group(1).title() + (f" ****{card.group(2)}" if card.group(2) else "")
-        haystack = f"{email.sender} {email.subject} {email.body[:2000]}".lower()
-        category = next(
-            (cat for cat, words in CATEGORY_WORDS.items() if re.search(words, haystack)),
-            Category.OTHER,
-        )
-        return ReceiptExtraction(
-            is_receipt=True,
-            store=_store(email),
-            total=total,
-            currency=currency,
-            tax=_money(tax_match)[0] if tax_match else None,
-            category=category,
-            payment_method=payment,
-            order_number=order.group(1) if order else None,
-        )
+        r = details(email)
+        return r if r.is_receipt else ReceiptExtraction(is_receipt=False)

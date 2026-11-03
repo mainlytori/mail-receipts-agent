@@ -273,3 +273,19 @@ def test_ollama_failure_falls_back_to_rules(monkeypatch):
     email.body = "Total: 9.99 USD"
     r = ollama_mod.OllamaExtractor("qwen2.5:7b").extract(email)
     assert r.is_receipt and r.total == 9.99
+
+
+def test_fix_up_category_and_order_number_even_when_rules_unsure():
+    email = make_email(15, "Hardee's EXPO Mall")
+    email.sender = "Hardee's <info@hardees.kz>"
+    email.body = "Спасибо! 4 993 ₸"
+    long_order = "Oct 9 - Nov 9  $23.20  Visa 4242  https://pay.stripe.com/receipts/abc"
+    r = ollama_mod.fix_up(email, ReceiptExtraction(
+        is_receipt=True, store="Hardee's", total=4993, currency="KZT",
+        category=Category.OTHER, order_number=long_order))
+    assert r.category == Category.FOOD_DRINKS
+    assert r.order_number is None
+
+
+def test_long_email_is_shortened_for_the_ai():
+    assert len(ollama_mod._short("x" * 50000)) < 6100
