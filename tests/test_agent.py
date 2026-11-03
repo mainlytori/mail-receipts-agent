@@ -189,3 +189,34 @@ def test_ollama_bad_answer_is_skipped(monkeypatch):
     monkeypatch.setattr(ollama_mod.requests, "post",
                         lambda url, json, timeout: _Resp({"message": {"content": "not json"}}))
     assert ollama_mod.OllamaExtractor("qwen2.5:7b").extract(make_email(9)) is None
+
+
+def test_fix_up_fills_store_and_corrects_currency():
+    email = make_email(10, "Your receipt from Anthropic")
+    email.sender = "Anthropic <invoice+statements@mail.anthropic.com>"
+    email.body = "Amount paid $23.20"
+    r = ollama_mod.fix_up(email, ReceiptExtraction(is_receipt=True, total=23.2, currency="KZT"))
+    assert r.currency == "USD"
+    assert r.store == "Anthropic"
+
+
+def test_fix_up_keeps_correct_currency_and_skips_generic_sender():
+    email = make_email(11, "Чек")
+    email.sender = "OFD Receipts <noreply@ofd.kz>"
+    email.body = "Итого: 4 993 ₸"
+    r = ollama_mod.fix_up(email, ReceiptExtraction(is_receipt=True, total=4993, currency="KZT"))
+    assert r.currency == "KZT"
+    assert r.store is None
+
+
+def test_ollama_schema_requires_store_and_items(monkeypatch):
+    monkeypatch.setattr(ollama_mod.requests, "get",
+                        lambda url, timeout: _Resp({"models": [{"name": "qwen2.5:7b"}]}))
+    ex = ollama_mod.OllamaExtractor("qwen2.5:7b")
+    assert {"store", "items", "currency"} <= set(ex.schema["required"])
+
+
+def test_sheet_link_or_id_both_work():
+    from receipt_agent.sinks.google_sheets import _sheet_id
+    assert _sheet_id("https://docs.google.com/spreadsheets/d/1AbC_d-9/edit#gid=0") == "1AbC_d-9"
+    assert _sheet_id(" 1AbC_d-9 ") == "1AbC_d-9"

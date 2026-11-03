@@ -74,6 +74,29 @@ def _money(match: re.Match) -> tuple[float | None, str | None]:
     return amount, currency
 
 
+def currencies_in(text: str) -> set[str]:
+    """Currency codes the text actually shows next to amounts."""
+    found = set()
+    for sym, code in SYMBOLS.items():
+        if re.search(re.escape(sym) + r"\s?\d|\d\s?" + re.escape(sym), text):
+            found.add(code)
+    for code in re.findall(rf"\b({CODES})\b", text):
+        found.add(code)
+    if re.search(r"\d\s?тг\b|\d\s?тенге", text, re.IGNORECASE):
+        found.add("KZT")
+    if re.search(r"\d\s?руб", text, re.IGNORECASE):
+        found.add("RUB")
+    return found
+
+
+GENERIC_SENDERS = re.compile(r"no-?reply|receipt|чек|ofd|офд|billing|notification|support", re.I)
+
+
+def sender_name(email: Email) -> str:
+    name = _store(email)
+    return "" if GENERIC_SENDERS.search(name) else name
+
+
 def _store(email: Email) -> str:
     name = re.sub(r"<.*?>", "", email.sender).strip().strip('"')
     if name:

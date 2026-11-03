@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 
+import re
+
 import gspread
+from googleapiclient.discovery import build
 
 from ..google_auth import google_credentials
 from ..models import ReceiptRow
@@ -16,11 +19,19 @@ TAB = "Receipts"
 
 class GoogleSheetsSink:
     def __init__(self, credentials_file: str, token_file: str, sheet_id: str | None):
-        gc = gspread.authorize(google_credentials(credentials_file, token_file))
+        creds = google_credentials(credentials_file, token_file)
+        gc = gspread.authorize(creds)
         if sheet_id:
-            self.book = gc.open_by_key(sheet_id)
+            self.book = gc.open_by_key(_sheet_id(sheet_id))
         else:
-            self.book = gc.create("Expenses (from email receipts)")
+            # Create through the Sheets API: it only needs the spreadsheets permission
+            # (gspread's own create() needs full Google Drive access).
+            sheets = build("sheets", "v4", credentials=creds, cache_discovery=False)
+            created = sheets.spreadsheets().create(
+                body={"properties": {"title": "Expenses (from email receipts)"}},
+                fields="spreadsheetId",
+            ).execute()
+            self.book = gc.open_by_key(created["spreadsheetId"])
             print(
                 f"\nCreated a new Google Sheet: {self.book.url}\n"
                 f"Put this line in your .env so the next runs use it:\n"
@@ -57,3 +68,9 @@ class GoogleSheetsSink:
                 v[link_idx] = f'=HYPERLINK("{url}", "Open email")'
             values.append(v)
         self.ws.append_rows(values, value_input_option="USER_ENTERED")
+
+
+def _sheet_id(value: str) -> str:
+    """Accepts a sheet ID or a full Google Sheets link."""
+    m = re.search(r"/spreadsheets/d/([A-Za-z0-9_-]+)", value)
+    return m.group(1) if m else value.strip()
