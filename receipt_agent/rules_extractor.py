@@ -17,7 +17,9 @@ MONEY = rf"(?:(?P<sym>[$€£₸₽¥₹₺])\s?|(?P<code>{CODES})\s?)?(?P<amt>{
 
 TOTAL_RE = re.compile(
     r"(?:grand\s+total|order\s+total|total\s+paid|amount\s+paid|amount\s+charged|total"
-    r"|итого|сумма\s+к\s+оплате|к\s+оплате|всего|оплачено)\s*[:\-]?\s*(?:\|\s*)?" + MONEY,
+    r"|итого|сумма\s+к\s+оплате|к\s+оплате|всего|оплачено|сумма)"
+    # anything that isn't a number between the word and the amount: ":", "|", dots, line breaks
+    r"[^\d$€£₸₽¥₹₺]{0,40}?" + MONEY,
     re.IGNORECASE,
 )
 TAX_RE = re.compile(r"(?:tax|vat|gst|ндс)\s*(?:\(\s*\d+%\s*\))?\s*[:\-]?\s*(?:\|\s*)?" + MONEY, re.IGNORECASE)

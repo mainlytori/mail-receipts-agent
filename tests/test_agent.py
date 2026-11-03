@@ -190,7 +190,9 @@ def test_ollama_bad_answer_is_skipped(monkeypatch):
                         lambda url, timeout: _Resp({"models": [{"name": "qwen2.5:7b"}]}))
     monkeypatch.setattr(ollama_mod.requests, "post",
                         lambda url, json, timeout: _Resp({"message": {"content": "not json"}}))
-    assert ollama_mod.OllamaExtractor("qwen2.5:7b").extract(make_email(9)) is None
+    email = make_email(9, "Hello")
+    email.body = "Just saying hi"
+    assert ollama_mod.OllamaExtractor("qwen2.5:7b").extract(email) is None
 
 
 def test_fix_up_fills_store_and_corrects_currency():
@@ -251,3 +253,23 @@ def test_folder_picker_asks_when_no_folder_and_saves_it(tmp_path, monkeypatch):
     monkeypatch.setitem(__import__("sys").modules, "tkinter", None)  # no window available
     assert m.excel_path(choose=False) == target.resolve() / "Expenses.xlsx"
     assert f"OUTPUT_FOLDER={target.resolve()}" in (tmp_path / ".env").read_text()
+
+
+def test_rules_total_with_dots_pipes_and_line_breaks():
+    for body in ["ИТОГО ........ 4 993,00 ₸", "Итого | | 4 763 тг", "ИТОГО:\n4 376,20\nKZT"]:
+        email = make_email(13, "Чек")
+        email.body = body
+        r = RulesExtractor().extract(email)
+        assert r.is_receipt and r.total in (4993, 4763, 4376.2), body
+
+
+def test_ollama_failure_falls_back_to_rules(monkeypatch):
+    monkeypatch.setattr(ollama_mod.requests, "get",
+                        lambda url, timeout: _Resp({"models": [{"name": "qwen2.5:7b"}]}))
+    def boom(url, json, timeout):
+        raise ollama_mod.requests.Timeout("too slow")
+    monkeypatch.setattr(ollama_mod.requests, "post", boom)
+    email = make_email(14, "Your receipt")
+    email.body = "Total: 9.99 USD"
+    r = ollama_mod.OllamaExtractor("qwen2.5:7b").extract(email)
+    assert r.is_receipt and r.total == 9.99

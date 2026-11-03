@@ -36,7 +36,7 @@ class OllamaError(RuntimeError):
 
 
 class OllamaExtractor:
-    def __init__(self, model: str, host: str = "http://localhost:11434", timeout: int = 300):
+    def __init__(self, model: str, host: str = "http://localhost:11434", timeout: int = 180):
         self.model = model
         self.url = host.rstrip("/") + "/api/chat"
         self.timeout = timeout
@@ -73,7 +73,8 @@ class OllamaExtractor:
             ],
             "format": self.schema,  # Ollama forces the answer to match this JSON schema
             "stream": False,
-            "options": {"temperature": 0, "num_ctx": 16384},
+            # num_predict stops a small model that gets stuck repeating itself.
+            "options": {"temperature": 0, "num_ctx": 8192, "num_predict": 800},
         }
         try:
             r = requests.post(self.url, json=payload, timeout=self.timeout)
@@ -84,6 +85,11 @@ class OllamaExtractor:
             log.warning("Ollama request failed for %r: %s", email.subject, e)
         except (KeyError, json.JSONDecodeError, ValidationError) as e:
             log.warning("Couldn't understand the model's answer for %r: %s", email.subject, e)
+        # The AI failed on this email: fall back to the text rules so it isn't lost.
+        fallback = RulesExtractor().extract(email)
+        if fallback.is_receipt:
+            log.info("Used the text rules instead for %r", email.subject)
+            return fallback
         return None
 
 
