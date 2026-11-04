@@ -6,11 +6,15 @@ It's **completely free**: the AI runs on your own computer through [Ollama](http
 
 For every new email that looks like a purchase, the AI reads it and fills in one row:
 
-| Date | Store | Total | Currency | Tax | Category | Payment method | Items | Order number | Email account | Email subject | Link to email |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-10-28 | Coffee Place | 12.50 | USD | 1.00 | Food & Drinks | Visa ****1234 | Latte; Croissant | A-10293 | me@gmail.com | Your receipt | Open email |
+| Date | Store | Type | Category | Total | Currency | Payment method | Items | Order number | Email account | Email subject |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-10-28 | Coffee Place | Food | Food & Drinks | 12.50 | USD | Visa ****1234 | Latte; Croissant | A-10293 | me@gmail.com | Your receipt |
 
-Categories: Groceries, Food & Drinks, Shopping, Transport, Bills, Subscriptions, Health, Travel, Entertainment, Other.
+A **Summary** tab adds everything up: the total spent per currency (tenge and dollars are kept apart), and the total per type.
+
+**Type** is the big picture: Food, Study, Shopping, Transport, Home & Bills, Subscriptions, Health & Beauty, Travel, Fun, Other. For example, Hardee's or KFC is Food, and Claude, ChatGPT, Duolingo or a course is Study.
+
+**Category** is more detailed: Groceries, Food & Drinks, Shopping, Transport, Bills, Subscriptions, Health, Travel, Entertainment, Other.
 
 The table is an **Excel file** that the agent creates in any folder you choose (default), or a **Google Sheet** if you want it on your phone.
 

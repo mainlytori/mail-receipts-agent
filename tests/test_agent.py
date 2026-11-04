@@ -95,9 +95,11 @@ def test_run_once_writes_receipts_and_skips_seen(tmp_path):
     ws = load_workbook(tmp_path / "out.xlsx")["Receipts"]
     assert [c.value for c in ws[1]] == ReceiptRow.HEADERS
     assert ws.max_row == 2
-    assert ws.cell(2, 2).value == "Coffee Place"
-    assert ws.cell(2, 4).value == "USD"
-    assert ws.cell(2, 8).value == "Latte; Croissant"
+    row = dict(zip(ReceiptRow.HEADERS, [c.value for c in ws[2]]))
+    assert row["Store"] == "Coffee Place"
+    assert row["Currency"] == "USD"
+    assert row["Items"] == "Latte; Croissant"
+    assert row["Type"] == "Food"
     assert sink.existing_keys() == {"gmail:me@gmail.com:id1"}
 
 
@@ -337,3 +339,84 @@ def test_run_keeps_receipts_found_before_connection_drops(tmp_path):
     sink = ExcelSink(str(tmp_path / "out.xlsx"))
     n = run_once([Flaky([])], sink, FakeExtractor(), SeenStore(str(tmp_path / "s.json")), 30, False)
     assert n == 1
+
+
+
+def test_type_is_general_and_study_wins():
+    from receipt_agent.models import type_for
+    assert type_for("Food & Drinks", "Hardee's EXPO Mall") == "Food"
+    assert type_for("Subscriptions", "Anthropic, PBC Claude Pro") == "Study"
+    assert type_for("Travel", "booking.com hotel") == "Travel"
+    assert type_for("Other", "something") == "Other"
+
+
+def test_old_excel_layout_is_migrated_and_summary_added(tmp_path):
+    from openpyxl import Workbook
+    old_headers = ["Date", "Store", "Total", "Currency", "Tax", "Category", "Payment method",
+                   "Items", "Order number", "Email account", "Email subject", "Link to email",
+                   "Email ID"]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Receipts"
+    ws.append(old_headers)
+    ws.append(["2026-11-01", "Hardee's EXPO", 4993, "KZT", None, "Food & Drinks", "", "", "x",
+               "me@gmail.com", "Your order", "https://mail", "gmail:me:1"])
+    ws.append(["2026-10-09", "Anthropic, PBC", 23.2, "USD", None, "Other", "", "Claude Pro", "y",
+               "me@gmail.com", "Your receipt", "https://mail", "gmail:me:2"])
+    path = tmp_path / "Expenses.xlsx"
+    wb.save(path)
+
+    sink = ExcelSink(str(path))
+    assert sink.existing_keys() == {"gmail:me:1", "gmail:me:2"}
+    sink.append([])
+    wb2 = load_workbook(path)
+    r = wb2["Receipts"]
+    assert [c.value for c in r[1]] == ReceiptRow.HEADERS
+    rows = [dict(zip(ReceiptRow.HEADERS, [c.value for c in row])) for row in r.iter_rows(min_row=2)]
+    assert [x["Type"] for x in rows] == ["Food", "Study"]
+    assert "Tax" not in ReceiptRow.HEADERS and "Link to email" not in ReceiptRow.HEADERS
+    sm = wb2["Summary"]
+    formulas = [c.value for row in sm.iter_rows() for c in row if isinstance(c.value, str)]
+    assert any(f.startswith("=SUMIF(Receipts!F:F,\"KZT\"") for f in formulas)
+
+
+def test_google_sheet_old_layout_is_migrated_with_semicolon_formulas():
+    from receipt_agent.sinks import google_sheets as gs
+
+    class FakeWS:
+        def __init__(self, rows):
+            self.rows = rows
+            self.updates = []
+        def row_values(self, n):
+            return self.rows[0] if self.rows else []
+        def get_all_values(self, **kw):
+            return self.rows
+        def clear(self):
+            self.rows = []
+        def update(self, values, rng, value_input_option=None):
+            self.updates.append(values)
+            self.rows = values
+        def format(self, *a, **k):
+            pass
+        def freeze(self, **k):
+            pass
+
+    old = [["Date", "Store", "Total", "Currency", "Tax", "Category", "Payment method", "Items",
+            "Order number", "Email account", "Email subject", "Link to email", "Email ID"],
+           ["2026-11-01", "Hardee's", 4993, "KZT", "", "Food & Drinks", "", "", "x", "me", "=hi",
+            "#ERROR!", "gmail:me:1"]]
+    receipts, summary = FakeWS(old), FakeWS([])
+
+    class FakeBook:
+        locale = "ru_RU"
+        def worksheet(self, name):
+            return summary
+
+    sink = gs.GoogleSheetsSink.__new__(gs.GoogleSheetsSink)
+    sink.ws, sink.book = receipts, FakeBook()
+    sink._ensure_layout()
+    assert receipts.rows[0] == ReceiptRow.HEADERS
+    row = dict(zip(ReceiptRow.HEADERS, receipts.rows[1]))
+    assert row["Type"] == "Food" and row["Total"] == 4993 and row["Email subject"] == "'=hi"
+    formula = summary.rows[1][0]
+    assert formula.startswith("=QUERY(Receipts!A:L; ") and "sum(E)" in formula and "group by F" in formula

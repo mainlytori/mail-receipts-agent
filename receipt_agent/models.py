@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -72,31 +73,29 @@ class ReceiptRow:
 
     date: str
     store: str
+    type: str
+    category: str
     total: float | None
     currency: str
-    tax: float | None
-    category: str
     payment_method: str
     items: str
     order_number: str
     account: str
     email_subject: str
-    email_link: str
     email_key: str
 
     HEADERS = [
         "Date",
         "Store",
+        "Type",
+        "Category",
         "Total",
         "Currency",
-        "Tax",
-        "Category",
         "Payment method",
         "Items",
         "Order number",
         "Email account",
         "Email subject",
-        "Link to email",
         "Email ID",
     ]
 
@@ -104,33 +103,74 @@ class ReceiptRow:
         return [
             self.date,
             self.store,
+            self.type,
+            self.category,
             self.total,
             self.currency,
-            self.tax,
-            self.category,
             self.payment_method,
             self.items,
             self.order_number,
             self.account,
             self.email_subject,
-            self.email_link,
             self.email_key,
         ]
 
     @classmethod
     def from_extraction(cls, email: Email, r: ReceiptExtraction) -> "ReceiptRow":
+        category = (r.category or Category.OTHER).value
+        store = r.store or ""
+        items = "; ".join(r.items)
         return cls(
             date=r.purchase_date or email.received_at.date().isoformat(),
-            store=r.store or "",
+            store=store,
+            type=type_for(category, f"{store} {items} {email.subject}"),
+            category=category,
             total=r.total,
             currency=(r.currency or "").upper(),
-            tax=r.tax,
-            category=(r.category or Category.OTHER).value,
             payment_method=r.payment_method or "",
-            items="; ".join(r.items),
+            items=items,
             order_number=r.order_number or "",
             account=email.account,
             email_subject=email.subject,
-            email_link=email.link,
             email_key=email.key,
         )
+
+
+def migrate_row(header: list[str], row: list) -> list:
+    """Turns a row written with an older column layout into the current one."""
+    old = {h: (row[i] if i < len(row) else "") for i, h in enumerate(header)}
+    if not old.get("Type"):
+        old["Type"] = type_for(
+            str(old.get("Category", "")),
+            f"{old.get('Store', '')} {old.get('Items', '')} {old.get('Email subject', '')}",
+        )
+    return [old.get(h, "") for h in ReceiptRow.HEADERS]
+
+
+# The general "Type" of a spend, broader than the category.
+STUDY_WORDS = re.compile(
+    r"anthropic|claude|chatgpt|openai|gemini|perplexity|duolingo|coursera|udemy|skillbox"
+    r"|edx|khan|quizlet|grammarly|notion|\bbooks?\b|книг|course|курс|school|школ|univer|универ"
+    r"|tuition|\bexams?\b|ielts|toefl",
+    re.IGNORECASE,
+)
+TYPE_BY_CATEGORY = {
+    "Groceries": "Food",
+    "Food & Drinks": "Food",
+    "Shopping": "Shopping",
+    "Transport": "Transport",
+    "Bills": "Home & Bills",
+    "Subscriptions": "Subscriptions",
+    "Health": "Health & Beauty",
+    "Travel": "Travel",
+    "Entertainment": "Fun",
+    "Other": "Other",
+}
+TYPES = ["Food", "Study", "Shopping", "Transport", "Home & Bills", "Subscriptions",
+         "Health & Beauty", "Travel", "Fun", "Other"]
+
+
+def type_for(category: str, text: str) -> str:
+    if STUDY_WORDS.search(text or ""):
+        return "Study"
+    return TYPE_BY_CATEGORY.get(category, "Other")
